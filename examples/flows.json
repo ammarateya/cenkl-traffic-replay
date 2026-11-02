@@ -1,0 +1,12 @@
+{
+  "flows": [
+    {
+      "id": "example-1",
+      "events": [
+        {"direction": "client_to_server", "size": 1000},
+        {"direction": "client_to_server", "size": 500},
+        {"direction": "server_to_client", "size": 1400}
+      ]
+    }
+  ]
+}
