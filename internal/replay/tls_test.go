@@ -53,18 +53,20 @@ func TestRunTLSDiscardServer(t *testing.T) {
 	defer ln.Close()
 	received := make(chan int, 1)
 	go func() {
-		conn, err := ln.Accept()
-		if err != nil {
-			received <- -1
-			return
+		for i := 0; i < 2; i++ {
+			conn, err := ln.Accept()
+			if err != nil {
+				received <- -1
+				return
+			}
+			n, err := io.Copy(io.Discard, conn)
+			conn.Close()
+			if err != nil {
+				received <- -1
+				return
+			}
+			received <- int(n)
 		}
-		defer conn.Close()
-		n, err := io.Copy(io.Discard, conn)
-		if err != nil {
-			received <- -1
-			return
-		}
-		received <- int(n)
 	}()
 	in := Input{Flows: []Flow{{ID: "tls-flow", Events: []Event{{Direction: "client_to_server", Size: 1000}, {Direction: "client_to_server", Size: 500}}}}}
 	var out strings.Builder
@@ -75,6 +77,16 @@ func TestRunTLSDiscardServer(t *testing.T) {
 		t.Fatalf("TLS server received %d bytes", got)
 	}
 	if !strings.Contains(out.String(), "sent=1500 bytes") {
+		t.Fatal(out.String())
+	}
+	out.Reset()
+	if err := RunTLSTarget(in, ln.Addr().String(), 5*time.Second, &out, certPEM); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-received; got != 1456 {
+		t.Fatalf("TLS target server received %d application bytes", got)
+	}
+	if !strings.Contains(out.String(), "target_tcp_payload_bytes=1500") {
 		t.Fatal(out.String())
 	}
 }

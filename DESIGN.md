@@ -10,7 +10,7 @@ This repository implements the client and a minimal TLS discard server for local
 
 `examples/flows.json` defines the initial JSON schema. The client can also generate synthetic flows with `-random`, choosing sizes from a configured inclusive range and directions at random after an initial client-to-server event. A seed makes the list reproducible. Random mode writes the generated list to a new JSON file before connecting; `-save` selects the path. Existing files are not overwritten. Each flow has a nonempty ID and an ordered, nonempty `events` list. Each event has a `direction` (`client_to_server` or `server_to_client`) and positive `size` in bytes. Sizes over 16 MiB are rejected to catch malformed data. Each flow creates a separate TCP connection, processed sequentially. The input should contain only metadata derived from traces; no payloads, hostnames, IP addresses, or timestamps are needed.
 
-A future trace conversion step must specify what size means. CenKL models the TCP payload bytes in each data-carrying packet belonging to a TLS connection. This MVP treats `size` as dummy application bytes to write, so it has not yet translated a target TCP payload size into an application write size after TLS overhead. The schema deliberately avoids claiming that a write recreates a captured packet.
+CenKL models the TCP payload bytes in each data-carrying packet belonging to a TLS connection. By default this MVP treats `size` as dummy application bytes to write. With `-target-segments`, it treats `size` as a target TCP payload length, uses TLS 1.3, disables dynamic TLS record sizing, and subtracts the 22-byte TLS record overhead from each client event. This targets a single TLS record per client event. A packet capture is still required to establish the resulting TCP segment sizes.
 
 ## Client behavior
 
@@ -20,7 +20,7 @@ The order of client writes follows the event list, but skipped server events do 
 
 ## What the network can actually reproduce
 
-A Go `Write` is an application stream operation. TCP may split or coalesce writes into segments; retransmission, congestion control, buffering, offload, and the path change observed packet sizes. In TLS mode, the Go TLS library encrypts and frames the dummy bytes, adding TLS overhead. The client guarantees application bytes submitted per event, not segment boundaries, exact TLS record sizes, on-wire packet sizes, or timing. Comparing a packet capture against the requested sizes is a future validation step.
+A Go `Write` is an application stream operation. TCP may split or coalesce writes into segments; retransmission, congestion control, buffering, offload, and the path change observed packet sizes. In TLS target mode, the client controls the TLS 1.3 record size as a way to aim at a TCP payload length, but TCP still decides segment boundaries. The README shows how to capture the local TLS connection and list its observed client-to-server TCP payload sizes. Those measurements must be compared with the requested flow before claiming segment-size fidelity. No timing is modeled.
 
 Random generation is for exercising the client and exploring throughput; it is not a substitute for measured ISP flow distributions.
 
