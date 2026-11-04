@@ -18,7 +18,7 @@ To generate sizes and directions, run:
 go run ./cmd/cenkl-replay -random -flows 1 -events 10 -min-size 100 -max-size 1500 -endpoint 127.0.0.1:9000
 ```
 
-Add `-save random-flows.json` to keep the exact generated list, or `-seed 42` to reproduce it later. The generated seed is printed. Every flow starts with a client-to-server event so it sends at least some bytes; later directions are chosen randomly. A TCP listener must be running first, for example `nc -l 9000 > /dev/null` in another Terminal window.
+Random mode automatically saves the exact generated directions and sizes to `generated-flows-<seed>.json` in the current directory and prints its path. Use `-save random-flows.json` to choose another filename, or `-seed 42` to reproduce a list. Existing files are never overwritten. The list is saved before connecting, so it remains available if the network run fails. Every flow starts with a client-to-server event so it sends at least some bytes; later directions are chosen randomly. A TCP listener must be running first, for example `nc -l 9000 > /dev/null` in another Terminal window.
 
 The example sends 1,500 bytes on one connection and reports its server-to-client event as unsupported. The client does not implement a listening peer.
 
