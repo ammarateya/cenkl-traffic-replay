@@ -8,7 +8,7 @@ This repository implements only the client. It does not record ISP traffic, pars
 
 ## Input contract
 
-`examples/flows.json` defines the initial JSON schema. Each flow has a nonempty ID and an ordered, nonempty `events` list. Each event has a `direction` (`client_to_server` or `server_to_client`) and positive `size` in bytes. Sizes over 16 MiB are rejected to catch malformed data. Each flow creates a separate TCP connection, processed sequentially. The input should contain only metadata derived from traces; no payloads, hostnames, IP addresses, or timestamps are needed.
+`examples/flows.json` defines the initial JSON schema. The client can also generate synthetic flows with `-random`, choosing sizes from a configured inclusive range and directions at random after an initial client-to-server event. A seed makes the list reproducible, and `-save` writes it for inspection. Each flow has a nonempty ID and an ordered, nonempty `events` list. Each event has a `direction` (`client_to_server` or `server_to_client`) and positive `size` in bytes. Sizes over 16 MiB are rejected to catch malformed data. Each flow creates a separate TCP connection, processed sequentially. The input should contain only metadata derived from traces; no payloads, hostnames, IP addresses, or timestamps are needed.
 
 A future trace conversion step must specify what size means. The recommended source is application payload length or TLS record length after clearly deciding whether the TLS header is included. Raw IP packet length is not interchangeable with either. The schema deliberately avoids claiming that a write recreates a captured packet.
 
@@ -21,6 +21,8 @@ The order of client writes follows the event list, but skipped server events do 
 ## What the network can actually reproduce
 
 A Go `Write` is an application stream operation. TCP may split or coalesce writes into segments; retransmission, congestion control, buffering, offload, and the path change observed packet sizes. This client guarantees bytes submitted to TCP per event, not segment boundaries, TLS record boundaries, on-wire packet sizes, or timing. No TLS is emitted: zero bytes are not valid TLS records. With only a plain TCP endpoint, the current output should be treated as a baseline for testing the input and sending path, not a faithful ISP traffic replay.
+
+Random generation is for exercising the client and exploring throughput; it is not a substitute for measured ISP flow distributions.
 
 ## Evaluation after this stage
 
