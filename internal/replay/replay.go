@@ -1,6 +1,8 @@
 package replay
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -66,8 +68,30 @@ type Result struct {
 }
 
 func Run(in Input, endpoint string, timeout time.Duration, out io.Writer) error {
+	return run(in, endpoint, timeout, out, nil)
+}
+
+// RunTLS sends the same dummy application bytes through an authenticated TLS connection.
+func RunTLS(in Input, endpoint string, timeout time.Duration, out io.Writer, caCert []byte) error {
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(caCert) {
+		return errors.New("CA certificate must contain a PEM certificate")
+	}
+	return run(in, endpoint, timeout, out, roots)
+}
+
+func run(in Input, endpoint string, timeout time.Duration, out io.Writer, roots *x509.CertPool) error {
 	for _, flow := range in.Flows {
-		conn, err := net.DialTimeout("tcp", endpoint, timeout)
+		var conn net.Conn
+		var err error
+		if roots == nil {
+			conn, err = net.DialTimeout("tcp", endpoint, timeout)
+		} else {
+			conn, err = tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", endpoint, &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs: roots,
+			})
+		}
 		if err != nil {
 			return fmt.Errorf("flow %q: connect: %w", flow.ID, err)
 		}

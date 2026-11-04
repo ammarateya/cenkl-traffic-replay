@@ -20,11 +20,13 @@ func main() {
 	maxSize := flag.Int("max-size", 1500, "largest random event size in bytes")
 	seed := flag.Int64("seed", 0, "random seed; 0 uses current time")
 	save := flag.String("save", "", "path for generated flow JSON; default is generated-flows-<seed>.json")
+	useTLS := flag.Bool("tls", false, "send over TLS")
+	caCert := flag.String("ca-cert", "", "trusted PEM certificate for the TLS server")
 	endpoint := flag.String("endpoint", "127.0.0.1:9000", "TCP host:port")
 	timeout := flag.Duration("timeout", 5*time.Second, "connect and write timeout")
 	flag.Parse()
-	if *timeout <= 0 || (*random == (*input != "")) || (*save != "" && !*random) {
-		fmt.Fprintln(os.Stderr, "choose exactly one of -input or -random; -save requires -random; -timeout must be positive")
+	if *timeout <= 0 || (*random == (*input != "")) || (*save != "" && !*random) || (*useTLS != (*caCert != "")) {
+		fmt.Fprintln(os.Stderr, "choose exactly one of -input or -random; -save requires -random; -tls requires -ca-cert; -timeout must be positive")
 		os.Exit(2)
 	}
 	var flows replay.Input
@@ -50,7 +52,15 @@ func main() {
 		flows, err = replay.Load(*input)
 	}
 	if err == nil {
-		err = replay.Run(flows, *endpoint, *timeout, os.Stdout)
+		if *useTLS {
+			var cert []byte
+			cert, err = os.ReadFile(*caCert)
+			if err == nil {
+				err = replay.RunTLS(flows, *endpoint, *timeout, os.Stdout, cert)
+			}
+		} else {
+			err = replay.Run(flows, *endpoint, *timeout, os.Stdout)
+		}
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
