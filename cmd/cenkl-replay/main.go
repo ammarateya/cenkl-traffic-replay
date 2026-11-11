@@ -13,6 +13,7 @@ import (
 func main() {
 	input := flag.String("input", "examples/flows.json", "ordered TLS record flow JSON")
 	endpoint := flag.String("endpoint", "127.0.0.1:9000", "TLS server host:port")
+	serverName := flag.String("server-name", "", "TLS certificate name when connecting through a local forwarder")
 	caCert := flag.String("ca-cert", "work/server-cert.pem", "trusted PEM certificate for the TLS server")
 	timeout := flag.Duration("timeout", 30*time.Second, "maximum time per flow")
 	flag.Parse()
@@ -25,7 +26,7 @@ func main() {
 		var cert []byte
 		cert, err = os.ReadFile(*caCert)
 		if err == nil {
-			err = recordshape.RunClient(flows, *endpoint, *timeout, cert, os.Stdout)
+			err = recordshape.RunClientWithServerName(flows, *endpoint, *serverName, *timeout, cert, os.Stdout)
 		}
 	}
 	if err != nil {

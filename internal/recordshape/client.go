@@ -14,6 +14,12 @@ import (
 // RunClient follows the same ordered schedule as ServeFlow. One application
 // write of size (target record size - TLS overhead) is made for each send turn.
 func RunClient(in replay.Input, endpoint string, timeout time.Duration, caCert []byte, out io.Writer) error {
+	return RunClientWithServerName(in, endpoint, "", timeout, caCert, out)
+}
+
+// RunClientWithServerName permits TLS verification when a local proxy endpoint
+// has a different name from the destination server behind it.
+func RunClientWithServerName(in replay.Input, endpoint, serverName string, timeout time.Duration, caCert []byte, out io.Writer) error {
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(caCert) {
 		return fmt.Errorf("CA certificate must contain a PEM certificate")
@@ -29,6 +35,9 @@ func RunClient(in replay.Input, endpoint string, timeout time.Duration, caCert [
 		RootCAs:                     roots,
 		DynamicRecordSizingDisabled: true,
 		SessionTicketsDisabled:      true,
+	}
+	if serverName != "" {
+		config.ServerName = serverName
 	}
 	buf := make([]byte, 16384)
 	for _, flow := range in.Flows {

@@ -1,0 +1,35 @@
+services:
+  client:
+    command:
+      - /cenkl-replay
+      - -input
+      - /flows/flows.json
+      - -endpoint
+      - gost-client:9001
+      - -server-name
+      - server
+      - -ca-cert
+      - /certs/server-cert.pem
+    depends_on:
+      - gost-client
+
+  gost-client:
+    image: gogost/gost:3.2.6
+    command:
+      - -L
+      - tcp://:9001/server:9000
+      - -F
+      - socks5+tls://gost-server:8443?notls=true&secure=true&caFile=/certs/gost-cert.pem
+    volumes:
+      - ./work/gost-cert.pem:/certs/gost-cert.pem:ro
+    depends_on:
+      - gost-server
+
+  gost-server:
+    image: gogost/gost:3.2.6
+    command:
+      - -L
+      - socks5+tls://:8443?notls=true&certFile=/certs/gost-cert.pem&keyFile=/certs/gost-key.pem
+    volumes:
+      - ./work/gost-cert.pem:/certs/gost-cert.pem:ro
+      - ./work/gost-key.pem:/certs/gost-key.pem:ro

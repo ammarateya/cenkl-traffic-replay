@@ -41,6 +41,8 @@ Both use [`examples/flows.json`](examples/flows.json) by default. The example re
 
 To run the **two-container version**, follow [DOCKER.md](DOCKER.md). The containers communicate through Docker's private network on port 9000; the port is not published to the host.
 
+To run the **four-container GOST proxy experiment**, follow [PROXY.md](PROXY.md). It checks that ordered dummy TLS records reach the replay server through GOST's SOCKS over TLS proxy.
+
 ## Use another flow list
 
 Pass the **same JSON file to both programs** with `-input PATH`. One flow opens one TLS connection. Events are processed in list order:
