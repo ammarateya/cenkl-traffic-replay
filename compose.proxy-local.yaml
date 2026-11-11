@@ -1,0 +1,15 @@
+services:
+  client:
+    # The dummy app and GOST client share one network stack, like two
+    # programs on a user's device. They remain separate containers/processes.
+    network_mode: "service:gost-client"
+    command:
+      - /cenkl-replay
+      - -input
+      - /flows/flows.json
+      - -endpoint
+      - 127.0.0.1:9001
+      - -server-name
+      - server
+      - -ca-cert
+      - /certs/server-cert.pem
