@@ -4,8 +4,8 @@ COPY go.mod ./
 COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -o /out/cenkl-replay ./cmd/cenkl-replay && \
-    CGO_ENABLED=0 go build -o /out/cenkl-discard-server ./cmd/cenkl-discard-server
+    CGO_ENABLED=0 go build -o /out/cenkl-server ./cmd/cenkl-server
 
 FROM scratch
 COPY --from=build /out/cenkl-replay /cenkl-replay
-COPY --from=build /out/cenkl-discard-server /cenkl-discard-server
+COPY --from=build /out/cenkl-server /cenkl-server

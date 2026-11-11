@@ -74,8 +74,8 @@ func convert(src io.Reader, dst io.Writer) error {
 			if err != nil {
 				return fmt.Errorf("CSV row %d column %d: expected signed packet size (use CenKL size/direction model without timing or --quantized)", count+1, col+1)
 			}
-			if value == 0 || value > 16<<20 || value < -(16<<20) {
-				return fmt.Errorf("CSV row %d column %d: size out of range", count+1, col+1)
+			if (value > -23 && value < 23) || value > 16406 || value < -16406 {
+				return fmt.Errorf("CSV row %d column %d: size must be 23..16406 for TLS record replay", count+1, col+1)
 			}
 			event := replay.Event{Direction: "client_to_server", Size: int(value)}
 			if value < 0 {

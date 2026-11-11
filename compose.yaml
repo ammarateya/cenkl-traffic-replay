@@ -3,7 +3,7 @@ services:
     build: .
     image: cenkl-record-replay:local
     command:
-      - /cenkl-discard-server
+      - /cenkl-server
       - -listen
       - :9000
       - -cert

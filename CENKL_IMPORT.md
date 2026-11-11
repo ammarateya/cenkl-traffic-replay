@@ -25,6 +25,6 @@ go run ./cmd/cenkl-import -input /path/to/obfuscation/cenkl/samples.csv -output 
 go run ./cmd/cenkl-replay -input cenkl-flows.json
 ```
 
-Start the scheduled TLS server with the same JSON file before replaying: `go run ./cmd/cenkl-discard-server -input cenkl-flows.json`. The importer preserves event order, directions, and sizes in JSON. It never overwrites an existing output file.
+Start the scheduled TLS server with the same JSON file before replaying: `go run ./cmd/cenkl-server -input cenkl-flows.json`. The importer preserves event order, directions, and sizes in JSON. It never overwrites an existing output file.
 
 The default mode exchanges dummy records in both directions and verifies their full TLS record lengths at the server. **Important:** CenKL's generated signed sizes originate from its TCP-payload model. Using those numbers as full TLS record sizes is a prototype mapping, not a conversion proven to preserve the original packet sizes. Values below 23 bytes cannot be represented as these TLS 1.3 records. Capture and compare packets separately when evaluating TCP segment fidelity.
