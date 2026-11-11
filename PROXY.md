@@ -40,3 +40,26 @@ docker compose -p cenkl-gost-local -f compose.yaml -f compose.proxy.yaml -f comp
 ```
 
 The GOST-to-GOST connection remains a separate Docker-network connection. Sharing the namespace only changes the app-to-local-proxy hop; it does not make the dummy app part of GOST or establish that the outer packets match real user traffic.
+
+## Capture the observed proxy link
+
+The capture runner uses the same-namespace layout above and starts `tcpdump` in that namespace. Its filter is `tcp port 8443`, the GOST client-to-server connection, so the PCAP includes both directions of that link. The PCAP does not contain the dummy app's loopback connection or the GOST server-to-destination connection.
+
+```sh
+scripts/run-proxy.sh once examples/flows.json
+scripts/run-proxy.sh hour
+scripts/run-proxy.sh infinite
+```
+
+`hour` starts new random 100-event flows until one hour has elapsed, then finishes the active flow. `infinite` runs until Ctrl-C, then finishes the active flow. Each session creates `work/proxy-run-<timestamp>/` with the saved flow JSON, client/server/GOST logs per flow, a tab-separated journal with `verified` or `failed`, and one `proxy-link.pcap` for the whole session. A failed flow is logged and the longer modes continue. The mode is limited by available disk space. These are synthetic random flows for exercising the testbed; they are not representative CenKL input by themselves.
+
+Aaron's five-column sample (`conn_id`, `idx`, `timestamp`, `direction`, `size`) can be imported and run as one saved batch:
+
+```sh
+go run ./cmd/cenkl-sample-import -input /path/to/sample.tsv -output work/aaron-sample.json
+scripts/run-proxy.sh once work/aaron-sample.json
+```
+
+The importer groups rows by connection ID, checks the 0-based order, maps direction `1` to client-to-server and `0` to server-to-client, and adds 5 bytes to each reported record size for the TLS header. It retains the original timestamp as metadata, but replay does not use timing. One batch may contain many connections; the journal counts verified connections. We keep the supplied sample under ignored `work/`, rather than publishing it in the repository.
+
+Inspect the capture with `tcpdump -nn -r work/proxy-run-.../proxy-link.pcap`. A nonempty PCAP proves packets crossed the GOST link, not that the replay flow passed. Check the journal and server log for that. Packet sizes in the PCAP are outer TCP payload sizes, which can differ from the requested inner TLS record sizes.

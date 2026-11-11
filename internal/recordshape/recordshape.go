@@ -132,8 +132,8 @@ func ServeFlow(raw net.Conn, config *tls.Config, flow replay.Flow, timeout time.
 	for i, event := range flow.Events {
 		plainSize := event.Size - Overhead
 		if event.Direction == "client_to_server" {
-			if _, err := io.ReadFull(conn, buf[:plainSize]); err != nil {
-				return fmt.Errorf("event %d receive: %w", i, err)
+			if n, err := io.ReadFull(conn, buf[:plainSize]); err != nil {
+				return fmt.Errorf("event %d receive: got %d of %d bytes: %w", i, n, plainSize, err)
 			}
 		} else {
 			if n, err := conn.Write(buf[:plainSize]); err != nil || n != plainSize {

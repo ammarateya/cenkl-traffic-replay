@@ -1,0 +1,21 @@
+services:
+  capture:
+    image: nicolaka/netshoot:latest
+    network_mode: "service:gost-client"
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    command:
+      - tcpdump
+      - -i
+      - eth0
+      - -U
+      - -w
+      - /capture/${CAPTURE_FILE:-proxy-link.pcap}
+      - tcp
+      - port
+      - "8443"
+    volumes:
+      - ./work:/capture
+    depends_on:
+      - gost-client

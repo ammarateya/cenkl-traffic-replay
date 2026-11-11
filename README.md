@@ -43,6 +43,10 @@ To run the **two-container version**, follow [DOCKER.md](DOCKER.md). The contain
 
 To run the **four-container GOST proxy experiment**, follow [PROXY.md](PROXY.md). It checks that ordered dummy TLS records reach the replay server through GOST's SOCKS over TLS proxy.
 
+For an outer-link PCAP and a one-hour or unlimited sequence of saved flows, use the capture runner in [PROXY.md](PROXY.md). The HTML page is a separate direct replay demo and does not capture proxy packets.
+
+Aaron's five-column TLS record sample has its own importer, [documented in PROXY.md](PROXY.md). It adds the missing 5-byte TLS header to each supplied size. This is different from the older [CenKL model CSV importer](CENKL_IMPORT.md), whose signed values come from a TCP packet payload model.
+
 ## Use another flow list
 
 Pass the **same JSON file to both programs** with `-input PATH`. One flow opens one TLS connection. Events are processed in list order:

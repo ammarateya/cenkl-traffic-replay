@@ -11,6 +11,7 @@ import (
 type Event struct {
 	Direction string `json:"direction"`
 	Size      int    `json:"size"`
+	Timestamp string `json:"timestamp,omitempty"`
 }
 
 type Flow struct {
