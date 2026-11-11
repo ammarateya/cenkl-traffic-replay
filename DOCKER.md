@@ -23,6 +23,8 @@ The example list requests records of 1,000 and 500 bytes from client to server, 
 
 The server exits after the scheduled flows. To run again, start it again. To remove the containers, use `docker compose down`.
 
+To replay another saved flow file, set `FLOW_FILE` to its path for both the server and client commands. For example, `FLOW_FILE=./work/random-flow.json docker compose up -d --build server` and then `FLOW_FILE=./work/random-flow.json docker compose run --rm client`.
+
 ## What this measures
 
 The containers communicate on port 9000 **inside Docker's private network**. That port is not published to your computer or the internet. `size` means the entire encrypted TLS 1.3 record, including header and encryption overhead. The one-byte readiness signal is excluded from the server's comparison log but remains visible in a network capture. This test checks TLS record lengths and order; it does not check TCP segment sizes, timing, or proxy behavior.

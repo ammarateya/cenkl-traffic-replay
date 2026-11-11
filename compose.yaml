@@ -15,7 +15,7 @@ services:
     volumes:
       - ./work/server-cert.pem:/certs/server-cert.pem:ro
       - ./work/server-key.pem:/certs/server-key.pem:ro
-      - ./examples/flows.json:/flows/flows.json:ro
+      - ${FLOW_FILE:-./examples/flows.json}:/flows/flows.json:ro
 
   client:
     image: cenkl-record-replay:local
@@ -29,4 +29,4 @@ services:
       - /certs/server-cert.pem
     volumes:
       - ./work/server-cert.pem:/certs/server-cert.pem:ro
-      - ./examples/flows.json:/flows/flows.json:ro
+      - ${FLOW_FILE:-./examples/flows.json}:/flows/flows.json:ro
