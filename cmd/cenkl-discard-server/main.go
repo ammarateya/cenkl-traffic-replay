@@ -15,9 +15,9 @@ import (
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:9000", "TCP address to listen on")
-	cert := flag.String("cert", "", "TLS certificate PEM file")
-	key := flag.String("key", "", "TLS private key PEM file")
-	input := flag.String("input", "", "optional flow JSON for ordered TLS record replay and verification")
+	cert := flag.String("cert", "work/server-cert.pem", "TLS certificate PEM file")
+	key := flag.String("key", "work/server-key.pem", "TLS private key PEM file")
+	input := flag.String("input", "examples/flows.json", "flow JSON for ordered TLS record replay; set empty for legacy discard mode")
 	readTimeout := flag.Duration("read-timeout", 30*time.Second, "maximum read time per connection")
 	flag.Parse()
 	if *cert == "" || *key == "" || *readTimeout <= 0 {

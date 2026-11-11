@@ -21,15 +21,18 @@ func main() {
 	maxSize := flag.Int("max-size", 1500, "largest random event size in bytes")
 	seed := flag.Int64("seed", 0, "random seed; 0 uses current time")
 	save := flag.String("save", "", "path for generated flow JSON; default is generated-flows-<seed>.json")
-	useTLS := flag.Bool("tls", false, "send over TLS")
+	useTLS := flag.Bool("tls", true, "send over TLS; set false for legacy plain TCP")
 	targetSegments := flag.Bool("target-segments", false, "treat sizes as target TCP payload lengths with TLS 1.3")
-	tlsRecords := flag.Bool("tls-records", false, "replay and verify full TLS 1.3 record sizes in both directions")
-	caCert := flag.String("ca-cert", "", "trusted PEM certificate for the TLS server")
+	tlsRecords := flag.Bool("tls-records", true, "replay and verify full TLS 1.3 record sizes in both directions")
+	caCert := flag.String("ca-cert", "work/server-cert.pem", "trusted PEM certificate for the TLS server")
 	endpoint := flag.String("endpoint", "127.0.0.1:9000", "TCP host:port")
 	timeout := flag.Duration("timeout", 5*time.Second, "connect and write timeout")
 	flag.Parse()
-	if *timeout <= 0 || (*random == (*input != "")) || (*save != "" && !*random) || (*useTLS != (*caCert != "")) || (*targetSegments && !*useTLS) || (*tlsRecords && !*useTLS) || (*tlsRecords && *targetSegments) {
-		fmt.Fprintln(os.Stderr, "choose exactly one of -input or -random; -save requires -random; -tls requires -ca-cert; -tls-records and -target-segments require -tls and cannot be combined; -timeout must be positive")
+	if *targetSegments || !*useTLS {
+		*tlsRecords = false
+	}
+	if *timeout <= 0 || (*random == (*input != "")) || (*save != "" && !*random) || (*useTLS && *caCert == "") || (*targetSegments && !*useTLS) {
+		fmt.Fprintln(os.Stderr, "choose exactly one of -input or -random; -save requires -random; TLS requires -ca-cert; -target-segments requires TLS; -timeout must be positive")
 		os.Exit(2)
 	}
 	var flows replay.Input

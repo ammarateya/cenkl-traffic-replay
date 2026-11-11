@@ -25,10 +25,8 @@ services:
       - /flows/flows.json
       - -endpoint
       - server:9000
-      - -tls
       - -ca-cert
       - /certs/server-cert.pem
-      - -tls-records
     volumes:
       - ./work/server-cert.pem:/certs/server-cert.pem:ro
       - ./examples/flows.json:/flows/flows.json:ro
