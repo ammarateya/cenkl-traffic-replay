@@ -4,7 +4,7 @@
 
 Provide a small, reproducible Go client that converts an ordered list of observed flow sizes and directions into dummy application bytes sent to a configurable TCP endpoint. This is a first stage for exploring whether replaying recorded traffic shapes can shorten the CENKL traffic generation cycle. It is independent of any obfuscation tool and does not contact original destinations.
 
-This repository implements the client and a minimal TLS discard server for local testing. It does not record ISP traffic, parse packet captures, implement a proxy, run Zeek/CENKL analysis, or provide developer diagnostics. Those belong to the longer term CenKL-as-a-Service vision, not this MVP.
+This repository implements the client and a minimal TLS server for local testing. The `-tls-records` mode makes both sides follow the same ordered schedule and verifies full TLS 1.3 record lengths at the server. It does not record ISP traffic, parse packet captures, implement a proxy, run Zeek/CENKL analysis, or provide developer diagnostics. Those belong to the longer term CenKL-as-a-Service vision, not this MVP.
 
 ## Input contract
 
@@ -12,11 +12,13 @@ This repository implements the client and a minimal TLS discard server for local
 
 CenKL models the TCP payload bytes in each data-carrying packet belonging to a TLS connection. By default this MVP treats `size` as dummy application bytes to write. With `-target-segments`, it treats `size` as a target TCP payload length, uses TLS 1.3, disables dynamic TLS record sizing, and subtracts the 22-byte TLS record overhead from each client event. This targets a single TLS record per client event. A packet capture is still required to establish the resulting TCP segment sizes.
 
+With `-tls-records`, `size` means the full encrypted TLS 1.3 record length, including the 5-byte record header and encryption overhead. The client and server read the same ordered list. Each side writes one dummy TLS record on its turns and reads on the other side's turns. The server observes encrypted record framing on the underlying connection and compares each observed length with the corresponding input entry. This mode accepts sizes from 23 through 16,406 bytes. A one-byte readiness signal after the handshake is excluded from the measured schedule.
+
 ## Client behavior
 
-For each `client_to_server` event, write exactly `size` zero bytes to the connection, retrying partial writes. The client can use plain TCP or TLS, with TLS requiring a trusted server certificate. A minimal TLS server accepts the connection, reads the data, discards it, and reports bytes received. For `server_to_client` events, the client counts and reports an unsupported event, with no read or synthetic response. The client closes each connection after its events. It prints sent byte counts and unsupported event counts per flow. Connection and write deadlines are configurable. Invalid input and network errors exit nonzero; a network failure stops subsequent flows.
+In the earlier plain TCP and TLS discard modes, each `client_to_server` event writes `size` zero bytes and each `server_to_client` event is reported as unsupported. In `-tls-records` mode, both directions are replayed as described above. The client opens one connection per flow and validates the server certificate. Invalid input and network errors exit nonzero; a network failure stops subsequent flows.
 
-The order of client writes follows the event list, but skipped server events do not form synchronization barriers. A compatible peer and an interaction protocol are needed before replaying mixed bidirectional sequences faithfully. In particular, this client cannot make the remote endpoint send specified response sizes. The endpoint must be a service the operator controls that accepts arbitrary TCP bytes; an existing application protocol may close the connection or interpret the dummy bytes unexpectedly.
+In `-tls-records` mode, both peers use the same schedule; a read at one end waits for the corresponding write at the other end. Consecutive writes in the same direction follow the input order. This works with the included server, not with an arbitrary TLS endpoint that does not know the schedule.
 
 ## What the network can actually reproduce
 

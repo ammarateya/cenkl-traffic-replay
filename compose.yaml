@@ -1,0 +1,34 @@
+services:
+  server:
+    build: .
+    image: cenkl-record-replay:local
+    command:
+      - /cenkl-discard-server
+      - -listen
+      - :9000
+      - -cert
+      - /certs/server-cert.pem
+      - -key
+      - /certs/server-key.pem
+      - -input
+      - /flows/flows.json
+    volumes:
+      - ./work/server-cert.pem:/certs/server-cert.pem:ro
+      - ./work/server-key.pem:/certs/server-key.pem:ro
+      - ./examples/flows.json:/flows/flows.json:ro
+
+  client:
+    image: cenkl-record-replay:local
+    command:
+      - /cenkl-replay
+      - -input
+      - /flows/flows.json
+      - -endpoint
+      - server:9000
+      - -tls
+      - -ca-cert
+      - /certs/server-cert.pem
+      - -tls-records
+    volumes:
+      - ./work/server-cert.pem:/certs/server-cert.pem:ro
+      - ./examples/flows.json:/flows/flows.json:ro

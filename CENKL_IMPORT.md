@@ -22,9 +22,9 @@ From this repository:
 
 ```sh
 go run ./cmd/cenkl-import -input /path/to/obfuscation/cenkl/samples.csv -output cenkl-flows.json
-go run ./cmd/cenkl-replay -input cenkl-flows.json -endpoint 127.0.0.1:9000 -tls -ca-cert work/server-cert.pem -target-segments
+go run ./cmd/cenkl-replay -input cenkl-flows.json -endpoint 127.0.0.1:9000 -tls -ca-cert work/server-cert.pem -tls-records
 ```
 
-Start the local TLS discard server as shown in the main README before replaying. The importer preserves event order, directions, and sizes in JSON. With `-target-segments`, client event sizes are treated as target TCP payload sizes; client events smaller than 23 bytes cannot be replayed in this mode because a TLS 1.3 record needs overhead. It never overwrites an existing output file.
+Start the scheduled TLS server with the same JSON file before replaying: `go run ./cmd/cenkl-discard-server -cert work/server-cert.pem -key work/server-key.pem -input cenkl-flows.json`. The importer preserves event order, directions, and sizes in JSON. It never overwrites an existing output file.
 
-The current replay client sends dummy bytes for client-to-server entries and reports server-to-client entries as unsupported. Thus this converts CenKL's generated flow descriptions into replay input, but does not yet reproduce complete two-direction flows or guarantee captured TCP segment sizes. Capture and compare packets when evaluating replay fidelity.
+The `-tls-records` mode now exchanges dummy records in both directions and verifies their full TLS record lengths at the server. **Important:** CenKL's generated signed sizes originate from its TCP-payload model. Using those numbers as full TLS record sizes is a prototype mapping, not a conversion proven to preserve the original packet sizes. Values below 23 bytes cannot be represented as these TLS 1.3 records. Capture and compare packets separately when evaluating TCP segment fidelity.
