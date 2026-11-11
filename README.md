@@ -4,6 +4,16 @@ This prototype makes two Go programs exchange **dummy data in an ordered list of
 
 This is a local record-size test. It does not run a developer proxy, reproduce packet timing, or guarantee TCP segment sizes.
 
+## Demo page
+
+With Docker Desktop running, start the local demo from this repository's root:
+
+```sh
+go run ./cmd/cenkl-demo
+```
+
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080). Choose 20, 100, or 500 events and click **Generate and run**. The page saves a random flow under `work/`, runs the two containers, and compares every server log entry with the saved directions and sizes. It shows the match count, a button to view server logs, and a link to download the saved flow. The demo runs only on your computer and uses a dedicated Docker Compose project that it cleans up after each run. The random flow is for demonstration, not a substitute for CenKL's traffic model.
+
 ## Run on one computer
 
 You need Go 1.22 or newer and OpenSSL. From the repository root, create a local test certificate:

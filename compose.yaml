@@ -13,8 +13,8 @@ services:
       - -input
       - /flows/flows.json
     volumes:
-      - ./work/server-cert.pem:/certs/server-cert.pem:ro
-      - ./work/server-key.pem:/certs/server-key.pem:ro
+      - ${TLS_CERT_FILE:-./work/server-cert.pem}:/certs/server-cert.pem:ro
+      - ${TLS_KEY_FILE:-./work/server-key.pem}:/certs/server-key.pem:ro
       - ${FLOW_FILE:-./examples/flows.json}:/flows/flows.json:ro
 
   client:
@@ -28,5 +28,5 @@ services:
       - -ca-cert
       - /certs/server-cert.pem
     volumes:
-      - ./work/server-cert.pem:/certs/server-cert.pem:ro
+      - ${TLS_CERT_FILE:-./work/server-cert.pem}:/certs/server-cert.pem:ro
       - ${FLOW_FILE:-./examples/flows.json}:/flows/flows.json:ro

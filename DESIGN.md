@@ -26,3 +26,5 @@ The readiness signal is excluded from the server's comparison log but is still a
 4. Measure flow throughput, errors, and resource use before scaling to more containers or hosts.
 
 The current repository does not generate ISP traces, run a proxy, capture traffic, model timing, or run CenKL analysis.
+
+A local HTML demo can generate a random flow and run the same two-container experiment. Its result verifies the server log against the saved input list; the random list is only a test fixture, not research traffic.
