@@ -213,7 +213,7 @@ func (d *demo) continuousLoop(ctx context.Context, journal string) {
 	for ctx.Err() == nil {
 		// A stop request finishes the active flow, then ends the loop.
 		batchCtx, batchCancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		result, err := d.execute(batchCtx, 100)
+		result, err := d.execute(batchCtx, 1+mathrand.Intn(100))
 		batchCancel()
 		if err != nil {
 			d.continuousError(err)

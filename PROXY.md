@@ -51,7 +51,7 @@ scripts/run-proxy.sh hour
 scripts/run-proxy.sh infinite
 ```
 
-`hour` starts new random 100-event flows until one hour has elapsed, then finishes the active flow. `infinite` runs until Ctrl-C, then finishes the active flow. Each session creates `work/proxy-run-<timestamp>/` with the saved flow JSON, client/server/GOST logs per flow, a tab-separated journal with `verified` or `failed`, and one `proxy-link.pcap` for the whole session. A failed flow is logged and the longer modes continue. The mode is limited by available disk space. These are synthetic random flows for exercising the testbed; they are not representative CenKL input by themselves.
+`hour` starts new random flows until one hour has elapsed, then finishes the active flow. `infinite` runs until Ctrl-C, then finishes the active flow. Each generated connection has a length picked uniformly from **1 to 100 TLS records**. Each session creates `work/proxy-run-<timestamp>/` with the saved flow JSON, client/server/GOST logs per flow, a tab-separated journal with `verified` or `failed`, and one `proxy-link.pcap` for the whole session. A failed flow is logged and the longer modes continue. The mode is limited by available disk space. These are synthetic random flows for exercising the testbed; their uniform length distribution does not match Aaron's sample and they are not representative CenKL input by themselves.
 
 Aaron's five-column sample (`conn_id`, `idx`, `timestamp`, `direction`, `size`) can be imported and run as one saved batch:
 

@@ -12,15 +12,18 @@ import (
 )
 
 func main() {
-	count := flag.Int("events", 100, "number of TLS record events")
+	count := flag.Int("events", 0, "number of TLS record events; 0 picks uniformly from 1..100")
 	output := flag.String("output", "", "output JSON file")
 	flag.Parse()
-	if *count < 2 || *count > 10000 || *output == "" {
-		fmt.Fprintln(os.Stderr, "use -events 2..10000 and -output PATH")
+	if *count < 0 || *count > 10000 || *output == "" {
+		fmt.Fprintln(os.Stderr, "use -events 0..10000 and -output PATH")
 		os.Exit(2)
 	}
 	seed := time.Now().UnixNano()
 	rng := rand.New(rand.NewSource(seed))
+	if *count == 0 {
+		*count = 1 + rng.Intn(100)
+	}
 	flow := replay.Flow{ID: fmt.Sprintf("generated-%d", seed), Events: make([]replay.Event, *count)}
 	for i := range flow.Events {
 		direction := "client_to_server"

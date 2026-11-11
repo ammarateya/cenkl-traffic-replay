@@ -32,7 +32,7 @@ next_input() {
     if [[ ! -f "$input" ]]; then echo "flow not found: $input" >&2; exit 1; fi
   else
     input="$run_dir/flow-$id.json"
-    go run ./cmd/cenkl-generate -events 100 -output "$input" >/dev/null
+    go run ./cmd/cenkl-generate -output "$input" >/dev/null
   fi
   export FLOW_FILE="./$input"
 }
