@@ -65,6 +65,13 @@
         <ol class="steps"><li>A random flow is saved as JSON.</li><li>Client and server read the same list.</li><li>They send TLS records in list order.</li><li>The server compares observed sizes with requested sizes.</li></ol>
       </section>
     </div>
+    <section class="card" aria-labelledby="continuous-title">
+      <h2 id="continuous-title">Continuous mode</h2>
+      <p class="muted">Keep generating and verifying 100-event flows until you stop. Each flow and its server log are saved under <code>work/</code>.</p>
+      <div class="actions"><button id="continuous-start" type="button">Start continuous mode</button><button id="continuous-stop" class="secondary" type="button" disabled>Stop after this flow</button><a id="continuous-download" href="/api/continuous/journal" hidden>Download run journal</a></div>
+      <div id="continuous-status" class="status" role="status" aria-live="polite"><span class="dot"></span><span id="continuous-text">Ready</span></div>
+      <p id="continuous-counts" class="muted"></p>
+    </section>
     <section id="results" class="card results" aria-labelledby="results-title">
       <h2 id="results-title">Run result</h2>
       <p id="summary" class="muted"></p>
@@ -103,6 +110,36 @@
       logs.textContent = response.ok ? await response.text() : 'No server log is available yet.';
       logs.classList.add('visible'); logsButton.textContent='Hide server logs';
     });
+    const continuousStart = document.getElementById('continuous-start');
+    const continuousStop = document.getElementById('continuous-stop');
+    const continuousStatus = document.getElementById('continuous-status');
+    const continuousText = document.getElementById('continuous-text');
+    async function refreshContinuous() {
+      try {
+        const response = await fetch('/api/continuous/status');
+        const state = await response.json();
+        continuousStart.disabled = state.running;
+        continuousStop.disabled = !state.running || state.stopping;
+        runButton.disabled = state.running;
+        document.getElementById('continuous-download').hidden = !state.journal;
+        document.getElementById('continuous-counts').textContent = state.runs + ' flows completed · ' + state.matched + ' records matched' + (state.last_flow ? ' · latest: ' + state.last_flow : '');
+        continuousStatus.className = 'status ' + (state.error ? 'error' : state.running ? 'running' : state.runs ? 'success' : '');
+        continuousText.textContent = state.error ? 'Stopped: ' + state.error : state.stopping ? 'Finishing current flow…' : state.running ? 'Running continuously…' : state.runs ? 'Stopped; all completed flows saved' : 'Ready';
+      } catch (error) { continuousText.textContent = 'Could not read status: ' + error.message; }
+    }
+    continuousStart.addEventListener('click', async () => {
+      continuousStart.disabled = true;
+      const response = await fetch('/api/continuous/start', {method:'POST'});
+      if (!response.ok) continuousText.textContent = 'Could not start: ' + (await response.text()).trim();
+      refreshContinuous();
+    });
+    continuousStop.addEventListener('click', async () => {
+      continuousStop.disabled = true;
+      await fetch('/api/continuous/stop', {method:'POST'});
+      refreshContinuous();
+    });
+    refreshContinuous();
+    setInterval(refreshContinuous, 1500);
   </script>
 </body>
 </html>

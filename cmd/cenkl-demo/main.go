@@ -44,9 +44,22 @@ type runResult struct {
 }
 
 type demo struct {
-	root   string
-	mu     sync.Mutex
-	latest *runResult
+	root           string
+	mu             sync.Mutex
+	latest         *runResult
+	stateMu        sync.Mutex
+	continuous     continuousState
+	stopContinuous context.CancelFunc
+}
+
+type continuousState struct {
+	Running  bool   `json:"running"`
+	Stopping bool   `json:"stopping"`
+	Runs     int    `json:"runs"`
+	Matched  int    `json:"matched"`
+	Journal  string `json:"journal"`
+	LastFlow string `json:"last_flow"`
+	Error    string `json:"error,omitempty"`
 }
 
 func main() {
@@ -64,6 +77,10 @@ func main() {
 	mux.HandleFunc("/api/run", d.run)
 	mux.HandleFunc("/api/logs", d.logs)
 	mux.HandleFunc("/api/flow", d.flow)
+	mux.HandleFunc("/api/continuous/start", d.startContinuous)
+	mux.HandleFunc("/api/continuous/stop", d.stopContinuousRun)
+	mux.HandleFunc("/api/continuous/status", d.continuousStatus)
+	mux.HandleFunc("/api/continuous/journal", d.continuousJournal)
 	server := &http.Server{Addr: "127.0.0.1:8080", Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Println("Demo available at http://127.0.0.1:8080")
 	if err := server.ListenAndServe(); err != nil {
@@ -153,6 +170,126 @@ func (d *demo) flow(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, filepath.Join(d.root, result.FlowFile))
 }
 
+func (d *demo) startContinuous(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", 405)
+		return
+	}
+	if !d.mu.TryLock() {
+		http.Error(w, "a demo run is already in progress", 409)
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	journal := fmt.Sprintf("work/demo-continuous-%d.jsonl", time.Now().UnixNano())
+	d.stateMu.Lock()
+	d.continuous = continuousState{Running: true, Journal: journal}
+	d.stopContinuous = cancel
+	d.stateMu.Unlock()
+	go d.continuousLoop(ctx, journal)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(d.continuous)
+}
+
+func (d *demo) continuousLoop(ctx context.Context, journal string) {
+	defer d.mu.Unlock()
+	defer func() {
+		d.stateMu.Lock()
+		d.continuous.Running = false
+		d.continuous.Stopping = false
+		d.stopContinuous = nil
+		d.stateMu.Unlock()
+	}()
+	path := filepath.Join(d.root, journal)
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		d.continuousError(err)
+		return
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		d.continuousError(err)
+		return
+	}
+	defer f.Close()
+	for ctx.Err() == nil {
+		// A stop request finishes the active flow, then ends the loop.
+		batchCtx, batchCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		result, err := d.execute(batchCtx, 100)
+		batchCancel()
+		if err != nil {
+			d.continuousError(err)
+			return
+		}
+		entry := struct {
+			Time time.Time `json:"time"`
+			*runResult
+			LogFile string `json:"log_file"`
+		}{time.Now().UTC(), result, fmt.Sprintf("work/demo-server-%d.log", result.Seed)}
+		if err := json.NewEncoder(f).Encode(entry); err != nil {
+			d.continuousError(err)
+			return
+		}
+		if err := f.Sync(); err != nil {
+			d.continuousError(err)
+			return
+		}
+		d.latest = result
+		d.stateMu.Lock()
+		d.continuous.Runs++
+		d.continuous.Matched += result.Matched
+		d.continuous.LastFlow = result.FlowFile
+		d.stateMu.Unlock()
+	}
+}
+
+func (d *demo) continuousError(err error) {
+	d.stateMu.Lock()
+	d.continuous.Error = err.Error()
+	d.stateMu.Unlock()
+}
+
+func (d *demo) stopContinuousRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", 405)
+		return
+	}
+	d.stateMu.Lock()
+	if d.continuous.Running && d.stopContinuous != nil {
+		d.continuous.Stopping = true
+		d.stopContinuous()
+	}
+	d.stateMu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (d *demo) continuousStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET required", 405)
+		return
+	}
+	d.stateMu.Lock()
+	state := d.continuous
+	d.stateMu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(state)
+}
+
+func (d *demo) continuousJournal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET required", 405)
+		return
+	}
+	d.stateMu.Lock()
+	journal := d.continuous.Journal
+	d.stateMu.Unlock()
+	if journal == "" {
+		http.Error(w, "no continuous run", 404)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Content-Disposition", `attachment; filename="demo-continuous.jsonl"`)
+	http.ServeFile(w, r, filepath.Join(d.root, journal))
+}
+
 func (d *demo) execute(ctx context.Context, count int) (*runResult, error) {
 	seed := time.Now().UnixNano()
 	flow, clientCount, serverCount := generateFlow(count, seed)
@@ -198,6 +335,9 @@ func (d *demo) execute(ctx context.Context, count int) (*runResult, error) {
 		return nil, logErr
 	}
 	if err := os.WriteFile(filepath.Join(d.root, "work", "demo-last-server.log"), []byte(serverLog), 0600); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(d.root, "work", fmt.Sprintf("demo-server-%d.log", seed)), []byte(serverLog), 0600); err != nil {
 		return nil, err
 	}
 	if clientErr != nil {
