@@ -2,7 +2,7 @@
 
 This prototype makes two Go programs exchange **dummy data in an ordered list of TLS record sizes and directions**. Both programs read the same flow file. The client sends at client-to-server entries; the server sends at server-to-client entries. At each receiving turn, the program waits for the requested data before moving to the next entry. The server measures the encrypted TLS record length on its connection and reports whether each entry matched.
 
-This is a local record-size test. It does not run a developer proxy, reproduce packet timing, or guarantee TCP segment sizes.
+The direct demo is a local record-size test. The separate [GOST pipeline](PIPELINE.md) also captures the outer proxy link and runs the published CENKL analysis tools. Neither mode reproduces packet timing or guarantees that a requested TLS record size becomes the same TCP segment size.
 
 ## Demo page
 
@@ -41,7 +41,7 @@ Both use [`examples/flows.json`](examples/flows.json) by default. The example re
 
 To run the **two-container version**, follow [DOCKER.md](DOCKER.md). The containers communicate through Docker's private network on port 9000; the port is not published to the host.
 
-To run the **four-container GOST proxy experiment**, follow [PROXY.md](PROXY.md). It checks that ordered dummy TLS records reach the replay server through GOST's SOCKS over TLS proxy.
+To run the **four-container GOST proxy experiment**, follow [PROXY.md](PROXY.md). For a capture and CENKL comparison, follow [PIPELINE.md](PIPELINE.md).
 
 For an outer-link PCAP and a one-hour or unlimited sequence of saved flows, use the capture runner in [PROXY.md](PROXY.md). The HTML page is a separate direct replay demo and does not capture proxy packets.
 

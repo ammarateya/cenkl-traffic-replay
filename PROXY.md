@@ -6,7 +6,7 @@ This uses the GOST configuration from CENKL's testbed: SOCKS over TLS. The path 
 replay client -> GOST client (TCP forwarder) -> GOST server (SOCKS over TLS) -> replay server
 ```
 
-The inner replay connection uses TLS 1.3. GOST adds a second, outer TLS connection between its two containers. The replay server checks the **inner** TLS record sizes and directions. GOST logs prove that it routed the connection. This experiment does not yet capture or evaluate the outer TCP packets that CenKL would observe.
+The inner replay connection uses TLS 1.3. GOST adds a second, outer TLS connection between its two containers. The replay server checks the **inner** TLS record sizes and directions. The capture runner records the outer TCP packets, and [PIPELINE.md](PIPELINE.md) explains the CENKL comparison.
 
 ## Run
 
@@ -43,7 +43,7 @@ The GOST-to-GOST connection remains a separate Docker-network connection. Sharin
 
 ## Capture the observed proxy link
 
-The capture runner uses the same-namespace layout above and starts `tcpdump` in that namespace. Its filter is `tcp port 8443`, the GOST client-to-server connection, so the PCAP includes both directions of that link. The PCAP does not contain the dummy app's loopback connection or the GOST server-to-destination connection.
+The capture runner uses the same-namespace client layout above and starts `tcpdump` in the **GOST server** network namespace. Its filter is `tcp port 8443`, the GOST client-to-server connection, so the PCAP includes both directions of that link. It disables network offloads on both proxy interfaces before the run. The PCAP does not contain the dummy app's loopback connection or the GOST server-to-destination connection.
 
 ```sh
 scripts/run-proxy.sh once examples/flows.json

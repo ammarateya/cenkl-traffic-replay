@@ -37,12 +37,14 @@ next_input() {
   export FLOW_FILE="./$input"
 }
 next_input 000001 "${2:-}"
-dc up -d --build server gost-server gost-client capture
+dc up -d --build server gost-server gost-client capture netsetup-client
 for attempt in {1..50}; do
   if dc logs --no-color capture 2>/dev/null | grep -q 'listening on eth0'; then break; fi
   sleep 0.2
 done
 if ! dc logs --no-color capture | grep -q 'listening on eth0'; then echo 'capture did not start' >&2; exit 1; fi
+netsetup_id=$(dc ps -a -q netsetup-client)
+if [[ -z "$netsetup_id" || $(docker inspect -f '{{.State.ExitCode}}' "$netsetup_id") != 0 ]]; then echo 'client network offload setup failed' >&2; exit 1; fi
 
 duration=${DURATION_SECONDS:-3600}
 if ! [[ "$duration" =~ ^[1-9][0-9]*$ ]]; then echo 'DURATION_SECONDS must be positive' >&2; exit 2; fi

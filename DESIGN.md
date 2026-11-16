@@ -25,6 +25,6 @@ The readiness signal is excluded from the server's comparison log but is still a
 3. Insert one proxy client/server pair and capture the connection between them for CenKL analysis.
 4. Measure flow throughput, errors, and resource use before scaling to more containers or hosts.
 
-The current repository does not generate ISP traces, run a proxy, capture traffic, model timing, or run CenKL analysis.
+The GOST path now runs a proxy, captures its outer TCP link, and can run the official CENKL Zeek and model tools; see [PIPELINE.md](PIPELINE.md). It does not generate ISP traces or model timing. Other proxy configurations and a CESNET importer remain future work.
 
 A local HTML demo can generate a random flow and run the same two-container experiment. Its result verifies the server log against the saved input list; the random list is only a test fixture, not research traffic.
