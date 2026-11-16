@@ -21,6 +21,14 @@ The analysis uses the official CENKL Zeek script and published order-1 size/dire
 
 ## What remains
 
-This runner is verified with **GOST only**. The upstream CENKL repository contains nine configurations, including Xray, NaiveProxy, and WebTunnel; connecting each to this runner and validating its outer-link capture remains work. CESNET TLS-Year22 supplies packet-level flow sizes/directions, not TLS record sizes. Mapping each packet length to a requested TLS record is a surrogate workload; it will not recreate the original CESNET TLS stream or timing. A CESNET importer and its sampling/filter policy need to be validated before a comparison can be interpreted.
+This runner is verified with **GOST only**. The upstream CENKL repository contains nine configurations, including Xray, NaiveProxy, and WebTunnel; connecting each to this runner and validating its outer-link capture remains work. CESNET TLS-Year22 supplies packet-level flow sizes/directions, not TLS record sizes. Mapping each packet length to a requested TLS record is a surrogate workload; it will not recreate the original CESNET TLS stream or timing. The included converter reads the first **up to 30 packets per original connection**, discards any entire connection with a size outside 23–16,406 bytes, maps `+1` to client→server and `-1` to server→client, and does not add five bytes. Its sampling/filter policy needs validation before a comparison can be interpreted.
+
+For a bounded CESNET-TLS-Year22 XS sample (requires Python and `pip install tables`):
+
+```sh
+python3 scripts/import-cesnet.py --input /absolute/path/to/CESNET-TLS-Year22-XS.h5 --output work/cesnet-1000.json --limit 1000
+scripts/run-proxy.sh once work/cesnet-1000.json
+scripts/analyze-cenkl.sh work/proxy-run-YYYYMMDD-HHMMSS-PID
+```
 
 For long runs, process bounded batches and keep summary outputs; PCAP and per-flow logs grow quickly. Do not extrapolate a one-hour synthetic random run into a result about real traffic.
