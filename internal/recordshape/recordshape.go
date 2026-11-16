@@ -124,6 +124,35 @@ func ServeFlow(raw net.Conn, config *tls.Config, flow replay.Flow, timeout time.
 	if err := conn.Handshake(); err != nil {
 		return fmt.Errorf("TLS handshake: %w", err)
 	}
+	return serveSchedule(conn, observed, flow, log)
+}
+
+// ServeSelectedFlow identifies the input flow from TLS ALPN, then verifies its
+// scheduled records. This lets a failed proxy connection retry without shifting
+// the server to the next flow in the input list.
+func ServeSelectedFlow(raw net.Conn, config *tls.Config, flows map[string]replay.Flow, timeout time.Duration, log io.Writer) (string, error) {
+	observed := &ObservedConn{Conn: raw}
+	conn := tls.Server(observed, config)
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		return "", err
+	}
+	if err := conn.Handshake(); err != nil {
+		return "", fmt.Errorf("TLS handshake: %w", err)
+	}
+	proto := conn.ConnectionState().NegotiatedProtocol
+	if len(proto) < len("cenkl-") || proto[:len("cenkl-")] != "cenkl-" {
+		return "", fmt.Errorf("missing flow ALPN")
+	}
+	id := proto[len("cenkl-"):]
+	flow, ok := flows[id]
+	if !ok {
+		return id, fmt.Errorf("unknown flow ID")
+	}
+	return id, serveSchedule(conn, observed, flow, log)
+}
+
+func serveSchedule(conn *tls.Conn, observed *ObservedConn, flow replay.Flow, log io.Writer) error {
 	if _, err := conn.Write([]byte{1}); err != nil {
 		return fmt.Errorf("send readiness signal: %w", err)
 	}

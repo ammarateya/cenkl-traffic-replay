@@ -1,0 +1,8 @@
+services:
+  xray-client:
+    entrypoint: ["/bin/sh", "/supervise.sh"]
+    command: ["/usr/bin/xray", "run", "-c", "/etc/xray/config.json"]
+    volumes:
+      - ./scripts/supervise-proxy.sh:/supervise.sh:ro
+    ports:
+      - "127.0.0.1:1086:1086"

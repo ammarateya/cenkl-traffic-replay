@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/ammarateya/cenkl-traffic-replay/internal/replay"
@@ -27,6 +28,15 @@ func RunClientWithServerName(in replay.Input, endpoint, serverName string, timeo
 // RunClientViaSOCKS connects to the destination through a local SOCKS5 proxy
 // when proxy is nonempty. TLS is still negotiated end to end with endpoint.
 func RunClientViaSOCKS(in replay.Input, endpoint, serverName, proxy string, timeout time.Duration, caCert []byte, out io.Writer) error {
+	return RunClientConcurrent(in, endpoint, serverName, proxy, timeout, caCert, out, 1)
+}
+
+// RunClientConcurrent permits separate flows to run at once while preserving
+// the ordered record schedule within each TLS connection.
+func RunClientConcurrent(in replay.Input, endpoint, serverName, proxy string, timeout time.Duration, caCert []byte, out io.Writer, concurrency int) error {
+	if concurrency < 1 {
+		return fmt.Errorf("concurrency must be positive")
+	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(caCert) {
 		return fmt.Errorf("CA certificate must contain a PEM certificate")
@@ -46,53 +56,98 @@ func RunClientViaSOCKS(in replay.Input, endpoint, serverName, proxy string, time
 	if serverName != "" {
 		config.ServerName = serverName
 	}
-	buf := make([]byte, 16384)
+	jobs := make(chan replay.Flow)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+	worker := func() {
+		defer wg.Done()
+		buf := make([]byte, 16384)
+		for flow := range jobs {
+			var flowErr error
+			for attempt := 1; attempt <= 5; attempt++ {
+				flowErr = sendFlow(flow, endpoint, proxy, config, timeout, buf)
+				if flowErr == nil {
+					break
+				}
+				if attempt < 5 {
+					time.Sleep(time.Duration(attempt) * 50 * time.Millisecond)
+				}
+			}
+			if flowErr != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("flow %q failed after retries: %w", flow.ID, flowErr)
+				}
+				mu.Unlock()
+				continue
+			}
+			mu.Lock()
+			fmt.Fprintf(out, "%s: completed %d scheduled TLS records\n", flow.ID, len(flow.Events))
+			mu.Unlock()
+		}
+	}
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go worker()
+	}
 	for _, flow := range in.Flows {
-		var conn *tls.Conn
-		var err error
-		if proxy == "" {
-			conn, err = tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", endpoint, config)
+		jobs <- flow
+	}
+	close(jobs)
+	wg.Wait()
+	return firstErr
+}
+
+func sendFlow(flow replay.Flow, endpoint, proxy string, baseConfig *tls.Config, timeout time.Duration, buf []byte) error {
+	config := baseConfig.Clone()
+	config.NextProtos = []string{"cenkl-" + flow.ID}
+	if len(config.NextProtos[0]) > 255 {
+		return fmt.Errorf("flow ID too long for TLS ALPN")
+	}
+	var conn *tls.Conn
+	var err error
+	if proxy == "" {
+		conn, err = tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", endpoint, config)
+	} else {
+		var raw net.Conn
+		raw, err = dialSOCKS5(proxy, endpoint, timeout)
+		if err == nil {
+			conn = tls.Client(raw, config)
+			err = conn.Handshake()
+			if err != nil {
+				conn.Close()
+			}
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("flow %q connect: %w", flow.ID, err)
+	}
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		conn.Close()
+		return err
+	}
+	var ready [1]byte
+	if _, err := io.ReadFull(conn, ready[:]); err != nil || ready[0] != 1 {
+		conn.Close()
+		return fmt.Errorf("flow %q: server readiness signal missing: %v", flow.ID, err)
+	}
+	for i, event := range flow.Events {
+		plainSize := event.Size - Overhead
+		if event.Direction == "client_to_server" {
+			if n, err := conn.Write(buf[:plainSize]); err != nil || n != plainSize {
+				conn.Close()
+				return fmt.Errorf("flow %q event %d send: wrote %d of %d: %v", flow.ID, i+1, n, plainSize, err)
+			}
 		} else {
-			var raw net.Conn
-			raw, err = dialSOCKS5(proxy, endpoint, timeout)
-			if err == nil {
-				conn = tls.Client(raw, config)
-				err = conn.Handshake()
-				if err != nil {
-					conn.Close()
-				}
+			if _, err := io.ReadFull(conn, buf[:plainSize]); err != nil {
+				conn.Close()
+				return fmt.Errorf("flow %q event %d receive: %w", flow.ID, i+1, err)
 			}
 		}
-		if err != nil {
-			return fmt.Errorf("flow %q connect: %w", flow.ID, err)
-		}
-		if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
-			conn.Close()
-			return err
-		}
-		var ready [1]byte
-		if _, err := io.ReadFull(conn, ready[:]); err != nil || ready[0] != 1 {
-			conn.Close()
-			return fmt.Errorf("flow %q: server readiness signal missing: %v", flow.ID, err)
-		}
-		for i, event := range flow.Events {
-			plainSize := event.Size - Overhead
-			if event.Direction == "client_to_server" {
-				if n, err := conn.Write(buf[:plainSize]); err != nil || n != plainSize {
-					conn.Close()
-					return fmt.Errorf("flow %q event %d send: wrote %d of %d: %v", flow.ID, i+1, n, plainSize, err)
-				}
-			} else {
-				if _, err := io.ReadFull(conn, buf[:plainSize]); err != nil {
-					conn.Close()
-					return fmt.Errorf("flow %q event %d receive: %w", flow.ID, i+1, err)
-				}
-			}
-		}
-		if err := conn.Close(); err != nil {
-			return fmt.Errorf("flow %q close: %w", flow.ID, err)
-		}
-		fmt.Fprintf(out, "%s: completed %d scheduled TLS records\n", flow.ID, len(flow.Events))
+	}
+	if err := conn.Close(); err != nil {
+		return fmt.Errorf("flow %q close: %w", flow.ID, err)
 	}
 	return nil
 }

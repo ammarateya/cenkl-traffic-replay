@@ -1,2 +1,3 @@
 /work/
 /*.pem
+__pycache__/

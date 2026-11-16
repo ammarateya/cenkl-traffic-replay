@@ -1,0 +1,43 @@
+services:
+  client:
+    network_mode: "service:naive-client"
+    command: ["/cenkl-replay", "-input", "/flows/flows.json", "-endpoint", "server:9000", "-server-name", "server", "-socks5", "127.0.0.1:1080", "-ca-cert", "/certs/server-cert.pem"]
+    depends_on: [naive-client]
+
+  naive-client:
+    build:
+      context: ${CENKL_UPSTREAM}/testbed/naiveproxy/client
+      dockerfile: Dockerfile.replay
+    image: cenkl-naiveproxy-client:local
+    entrypoint: ["naive"]
+    command: ["--insecure", "/etc/naiveproxy/config.json"]
+    volumes:
+      - ${CENKL_UPSTREAM}/testbed/naiveproxy/client/config.json:/etc/naiveproxy/config.json:ro
+    depends_on: [naive-server]
+    links:
+      - naive-server:proxy.lab
+
+  naive-server:
+    image: pocat/naiveproxy@sha256:71a1c1efd8692afe1aa9a3af496e44a5fd7aceacff1d4077198aca2b9113db98
+    environment:
+      PATH: /etc/naiveproxy/Caddyfile
+    volumes:
+      - ./work/naive-Caddyfile:/etc/naiveproxy/Caddyfile:ro
+      - ${CENKL_UPSTREAM}/testbed/certs/server.crt:/etc/naiveproxy/server.crt:ro
+      - ${CENKL_UPSTREAM}/testbed/certs/server.key:/etc/naiveproxy/server.key:ro
+
+  capture:
+    image: nicolaka/netshoot:latest
+    network_mode: "service:naive-server"
+    cap_add: [NET_RAW, NET_ADMIN]
+    command: ["sh", "-ec", "ethtool -K eth0 tso off gso off gro off tx off rx off; exec tcpdump -i eth0 -U -w /capture/${CAPTURE_FILE} tcp port 443"]
+    volumes:
+      - ./work:/capture
+    depends_on: [naive-server]
+
+  netsetup-client:
+    image: nicolaka/netshoot:latest
+    network_mode: "service:naive-client"
+    cap_add: [NET_ADMIN]
+    command: ["ethtool", "-K", "eth0", "tso", "off", "gso", "off", "gro", "off", "tx", "off", "rx", "off"]
+    depends_on: [naive-client]

@@ -62,8 +62,8 @@ while (( stop == 0 )); do
   if dc run --rm client > "$client_log" 2>&1; then client_ok=1; else client_ok=0; fi
   dc logs --no-color server > "$server_log"
   dc logs --no-color gost-client gost-server > "$run_dir/gost-$id.log"
-  expected=$(grep -c '"id"' "$input")
-  observed=$(grep -c 'verified .* TLS records' "$server_log" || true)
+  expected=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["flows"]))' "$input")
+  observed=$(grep 'verified .* TLS records' "$server_log" | sed -E 's/.*\| (.*): verified .*/\1/' | sort -u | wc -l | tr -d ' ')
   status=failed
   if (( client_ok == 1 && observed == expected )); then status=verified; fi
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" "$observed" "$expected" "$status" "$input" "$server_log" "$client_log" >> "$run_dir/journal.tsv"

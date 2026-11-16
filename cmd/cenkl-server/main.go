@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ammarateya/cenkl-traffic-replay/internal/recordshape"
@@ -45,15 +46,57 @@ func main() {
 		MinVersion:   tls.VersionTLS13, MaxVersion: tls.VersionTLS13,
 		DynamicRecordSizingDisabled: true, SessionTicketsDisabled: true,
 	}
+	flowByID := make(map[string]replay.Flow, len(flows.Flows))
 	for _, flow := range flows.Flows {
+		if _, exists := flowByID[flow.ID]; exists {
+			fmt.Fprintln(os.Stderr, "duplicate flow ID:", flow.ID)
+			os.Exit(1)
+		}
+		flowByID[flow.ID] = flow
+	}
+	config.GetConfigForClient = func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+		for _, proto := range hello.SupportedProtos {
+			if len(proto) >= len("cenkl-") && proto[:len("cenkl-")] == "cenkl-" {
+				if _, ok := flowByID[proto[len("cenkl-"):]]; ok {
+					selected := config.Clone()
+					selected.GetConfigForClient = nil
+					selected.NextProtos = []string{proto}
+					return selected, nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("unknown flow ALPN")
+	}
+	completed := make(map[string]bool, len(flows.Flows))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for {
 		raw, err := listener.Accept()
 		if err != nil {
+			mu.Lock()
+			allDone := len(completed) == len(flows.Flows)
+			mu.Unlock()
+			if allDone {
+				break
+			}
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			break
 		}
-		if err := recordshape.ServeFlow(raw, config, flow, *timeout, os.Stdout); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			id, err := recordshape.ServeSelectedFlow(raw, config, flowByID, *timeout, os.Stdout)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "flow %q attempt failed: %v\n", id, err)
+				return
+			}
+			completed[id] = true
+			if len(completed) == len(flows.Flows) {
+				listener.Close()
+			}
+		}()
 	}
+	wg.Wait()
 }

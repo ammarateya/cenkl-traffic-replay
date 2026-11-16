@@ -16,7 +16,7 @@ One flow uses one TLS connection. The server finishes the TLS handshake, sends a
 
 Go TLS 1.3 adds 22 bytes to each unpadded application record: a 5-byte header, a 1-byte encrypted inner content type, and a 16-byte authentication tag. Dynamic record sizing is disabled, and each event results in one application write of `size - 22` dummy bytes. The server's wrapper reads the underlying TLS record framing and compares every observed full record length with the requested size. It reports a mismatch as an error.
 
-The readiness signal is excluded from the server's comparison log but is still a real TLS record on the network. A later proxy experiment must account for or remove that preamble before treating a capture as a CenKL flow. A single TLS record can also be split across TCP segments or share a segment with another record; this experiment verifies TLS record lengths, not TCP packetization.
+The readiness signal is excluded from the server's comparison log but is still a real TLS record on the network. The client identifies each flow with a TLS ALPN value during the inner handshake so failed proxy attempts can retry without shifting the server's input order. Those setup bytes can affect the outer proxy capture and must be considered when interpreting a CENKL comparison. A single TLS record can also be split across TCP segments or share a segment with another record; this experiment verifies TLS record lengths, not TCP packetization.
 
 ## Next steps
 
@@ -25,6 +25,6 @@ The readiness signal is excluded from the server's comparison log but is still a
 3. Insert one proxy client/server pair and capture the connection between them for CenKL analysis.
 4. Measure flow throughput, errors, and resource use before scaling to more containers or hosts.
 
-The GOST path now runs a proxy, captures its outer TCP link, and can run the official CENKL Zeek and model tools; see [PIPELINE.md](PIPELINE.md). It does not generate ISP traces or model timing. Other proxy configurations and a CESNET importer remain future work.
+The proxy runners capture their outer TCP links and use the official CENKL Zeek and model tools; see [PIPELINE.md](PIPELINE.md). The testbed does not generate ISP traces or model timing. The CESNET importer is a packet-size-to-record-size surrogate, not a reconstruction of original TLS records.
 
 A local HTML demo can generate a random flow and run the same two-container experiment. Its result verifies the server log against the saved input list; the random list is only a test fixture, not research traffic.

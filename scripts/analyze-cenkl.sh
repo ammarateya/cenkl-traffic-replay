@@ -13,16 +13,25 @@ if [[ ! -x "$obfs" || ! -f "$model/hist.bin" ]]; then
 fi
 if [[ ! -s "$run_dir/proxy-link.pcap" ]]; then echo 'proxy-link.pcap missing or empty' >&2; exit 1; fi
 
-docker run --rm \
-  -v "$run_dir:/data" \
-  -v "$upstream/cenkl:/cenkl:ro" \
-  -w /data zeek/zeek:latest \
-  zeek -r /data/proxy-link.pcap /cenkl/obfuscation.zeek > "$run_dir/zeek-output.log" 2>&1
+if [[ ${REUSE_ZEEK:-0} != 1 ]]; then
+  docker run --rm \
+    -v "$run_dir:/data" \
+    -v "$upstream/cenkl:/cenkl:ro" \
+    -w /data zeek/zeek:latest \
+    zeek -r /data/proxy-link.pcap /cenkl/obfuscation.zeek > "$run_dir/zeek-output.log" 2>&1
+fi
 if [[ ! -s "$run_dir/obfuscation.log" || ! -s "$run_dir/packets.log" ]]; then
   echo 'Zeek did not produce usable CENKL logs; inspect zeek-output.log' >&2; exit 1
 fi
+python3 scripts/filter-cenkl-zero-rtt.py "$run_dir" > "$run_dir/filter-output.log"
+outer_flows=$(($(wc -l < "$run_dir/obfuscation.filtered.log") - 1))
+minimum=${MIN_OUTER_FLOWS:-100}
+if (( outer_flows < minimum )); then
+  echo "Only $outer_flows outer proxy flows; need at least $minimum for a model comparison. This proxy may multiplex inner connections." >&2
+  exit 1
+fi
 
-"$obfs" zeek2flows --flows "$run_dir/obfuscation.log" --packets "$run_dir/packets.log" --output "$run_dir/flows.bin" > "$run_dir/zeek2flows-output.log" 2>&1
+"$obfs" zeek2flows --flows "$run_dir/obfuscation.filtered.log" --packets "$run_dir/packets.filtered.log" --output "$run_dir/flows.bin" > "$run_dir/zeek2flows-output.log" 2>&1
 cat > "$run_dir/model.toml" <<EOF
 [flow]
 strip_tls_handshake = true
@@ -40,4 +49,4 @@ EOF
 "$obfs" divergence delta --input "$run_dir/divergence.bin" > "$run_dir/divergence-delta.json"
 "$obfs" divergence cumulative --input "$run_dir/divergence.bin" > "$run_dir/divergence-cumulative.json"
 echo "CENKL analysis saved in $run_dir"
-echo "Zeek accepted $(($(wc -l < "$run_dir/obfuscation.log") - 1)) outer proxy connections"
+echo "Zeek accepted $outer_flows outer proxy connections"
