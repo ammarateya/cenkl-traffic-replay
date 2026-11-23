@@ -1,3 +1,4 @@
 /work/
 /*.pem
 __pycache__/
+/service/node_modules/

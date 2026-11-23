@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CenKL test setup</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:680px;margin:3rem auto;padding:0 1rem;color:#222}label{display:block;margin:1rem 0 .3rem}input,select,button{font:inherit;padding:.45rem}input{width:100%;box-sizing:border-box}button{margin-top:1rem}pre{white-space:pre-wrap;background:#f2f2f2;padding:1rem}small{color:#555}</style>
+<h1>CenKL test setup</h1>
+<p>Submit a public GitHub repository for an agent-written setup candidate, or run a smoke test with an existing proxy configuration.</p>
+<form id="form">
+  <label for="type">Input</label>
+  <select id="type"><option value="github">GitHub repository</option><option value="preset">Existing proxy configuration</option></select>
+  <div id="github"><label for="url">GitHub URL</label><input id="url" placeholder="https://github.com/owner/repo" autocomplete="off"></div>
+  <div id="presetBox" hidden><label for="preset">Proxy</label><select id="preset"><option>gost</option><option>vmess</option><option>vless</option><option>trojan</option><option>vless-ws</option><option>vision</option></select><label for="sample">Run</label><select id="sample"><option value="smoke">Three-record smoke test</option><option value="model">200 synthetic flows and CENKL analysis</option></select></div>
+  <button type="submit">Start job</button>
+</form>
+<p><small>New repositories stop at a setup candidate for review. Preset model runs use synthetic traffic and are only pipeline checks; their scores do not measure realistic detectability.</small></p>
+<pre id="result" aria-live="polite">No job submitted.</pre>
+<script>
+const type=document.querySelector('#type'), github=document.querySelector('#github'), presetBox=document.querySelector('#presetBox'), result=document.querySelector('#result');
+type.onchange=()=>{github.hidden=type.value!=='github';presetBox.hidden=type.value!=='preset'};
+document.querySelector('#form').onsubmit=async e=>{
+  e.preventDefault();result.textContent='Submitting…';
+  const data=type.value==='github'?{type:'github',url:document.querySelector('#url').value}:{type:'preset',preset:document.querySelector('#preset').value,sample:document.querySelector('#sample').value};
+  try{
+    const response=await fetch('/api/jobs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});
+    const job=await response.json();if(!response.ok)throw Error(job.error);
+    result.textContent=`Job ${job.id}: queued`;
+    const poll=setInterval(async()=>{
+      try{const r=await fetch(`/api/jobs/${job.id}`);const j=await r.json();result.textContent=JSON.stringify(j,null,2)+(j.report?`\nReport: /api/jobs/${job.id}/report`:'')+(j.candidate?`\nCandidate: /api/jobs/${job.id}/candidate`:'');
+        if(!['queued','running'].includes(j.status))clearInterval(poll);
+      }catch(err){clearInterval(poll);result.textContent=String(err)}
+    },1500);
+  }catch(err){result.textContent=String(err)}
+};
+</script>
+</html>

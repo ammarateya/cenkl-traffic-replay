@@ -1,5 +1,7 @@
 # CenKL TLS record replay
 
+For the server-side GitHub submission and evaluator prototype, see [SERVICE.md](SERVICE.md).
+
 This prototype makes two Go programs exchange **dummy data in an ordered list of TLS record sizes and directions**. Both programs read the same flow file. The client sends at client-to-server entries; the server sends at server-to-client entries. At each receiving turn, the program waits for the requested data before moving to the next entry. The server measures the encrypted TLS record length on its connection and reports whether each entry matched.
 
 The direct demo is a local record-size test. The [proxy pipeline](PIPELINE.md) also captures the outer link for GOST, Xray, NaiveProxy, or WebTunnel and runs the published CENKL analysis tools. Neither mode reproduces packet timing or guarantees that a requested TLS record size becomes the same TCP segment size.
