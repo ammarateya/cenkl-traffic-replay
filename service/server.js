@@ -12,9 +12,9 @@ const queue = new JobQueue(root, storage, async () => {
   const { Codex } = await import('@openai/codex-sdk');
   let cli = process.env.CENKL_CODEX_BIN;
   if (!cli) {
-    try { cli = execFileSync('which', ['codex'], { encoding: 'utf8' }).trim(); } catch { /* SDK uses its bundled CLI. */ }
+    try { cli = execFileSync('which', ['codex'], { encoding: 'utf8' }).trim(); } catch { throw new Error('Set CENKL_CODEX_BIN to an installed Codex CLI'); }
   }
-  return new Codex(cli ? { codexPathOverride: cli } : {});
+  return new Codex({ codexPathOverride: join(serviceDir, 'codex-local.sh'), env: { ...process.env, CENKL_CODEX_REAL_BIN: cli } });
 });
 await queue.init();
 
